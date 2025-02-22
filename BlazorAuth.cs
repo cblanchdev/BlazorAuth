@@ -1,13 +1,12 @@
-﻿using Blazored.LocalStorage;
-using Blazored.SessionStorage;
-using Microsoft.AspNetCore.Components.Authorization;
+﻿using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using System.Security.Claims;
 
 namespace BlazorAuth;
 
-public class BlazorAuth(SignInManager<IdentityUser> _signInManager, UserManager<IdentityUser> _userManager, ISessionStorageService _sessionStorage, ILocalStorageService _localStorage, IOptions<BlazorAuthOptions> _options) : AuthenticationStateProvider
+public class BlazorAuth(SignInManager<IdentityUser> _signInManager, UserManager<IdentityUser> _userManager, ProtectedLocalStorage _localStorage, ProtectedSessionStorage _sessionStorage, IOptions<BlazorAuthOptions> _options) : AuthenticationStateProvider
 {
     #region Properties
 
@@ -41,7 +40,15 @@ public class BlazorAuth(SignInManager<IdentityUser> _signInManager, UserManager<
     public async Task SignOut()
     {
         User = Anonymous;
-        await _sessionStorage.RemoveItemAsync("BlazorAuthUser");
+        if (_options.Value.StorageType == BlazorAuthOptions.eStorageType.Session)
+        {
+            await _sessionStorage.DeleteAsync("BlazorAuthUser");
+        }
+        else if (_options.Value.StorageType == BlazorAuthOptions.eStorageType.Local)
+        {
+            await _localStorage.DeleteAsync("BlazorAuthUser");
+        }
+        ;
 
         Task<AuthenticationState> authState = GetAuthenticationStateAsync();
         NotifyAuthenticationStateChanged(authState);
@@ -84,11 +91,11 @@ public class BlazorAuth(SignInManager<IdentityUser> _signInManager, UserManager<
     {
         if (_options.Value.StorageType == BlazorAuthOptions.eStorageType.Session)
         {
-            await _sessionStorage.SetItemAsync<string>("BlazorAuthUser", userId);
+            await _sessionStorage.SetAsync("BlazorAuthUser", userId);
         }
         else if (_options.Value.StorageType == BlazorAuthOptions.eStorageType.Local)
         {
-            await _localStorage.SetItemAsync<string>("BlazorAuthUser", userId);
+            await _localStorage.SetAsync("BlazorAuthUser", userId);
         }
     }
 
@@ -98,11 +105,11 @@ public class BlazorAuth(SignInManager<IdentityUser> _signInManager, UserManager<
         {
             if (_options.Value.StorageType == BlazorAuthOptions.eStorageType.Session)
             {
-                return await _sessionStorage.GetItemAsync<string>("BlazorAuthUser");
+                return (await _sessionStorage.GetAsync<string>("BlazorAuthUser")).Value ?? "";
             }
             else if (_options.Value.StorageType == BlazorAuthOptions.eStorageType.Local)
             {
-                return await _localStorage.GetItemAsync<string>("BlazorAuthUser") ?? "";
+                return (await _localStorage.GetAsync<string>("BlazorAuthUser")).Value ?? "";
             }
         }
         catch (Exception) { }
