@@ -18,7 +18,7 @@ public class BlazorAuth(SignInManager<IdentityUser> _signInManager, UserManager<
 
     #region Public Methods
 
-    public async Task<AuthenticationState> SignIn(string email, string password)
+    public async Task<SignInResult> SignIn(string email, string password)
     {
         IdentityUser? user = await _userManager.FindByEmailAsync(email);
         if (user != null)
@@ -31,21 +31,20 @@ public class BlazorAuth(SignInManager<IdentityUser> _signInManager, UserManager<
 
                 Task<AuthenticationState> authState = GetAuthenticationStateAsync();
                 NotifyAuthenticationStateChanged(authState);
-                return await authState;
+                return SignInResult.Success;
             }
         }
 
-        throw new Exception("Invalid username or password.");
+        return SignInResult.Failed;
     }
 
-    public async Task<AuthenticationState> SignOut()
+    public async Task SignOut()
     {
         User = Anonymous;
         await _sessionStorage.RemoveItemAsync("BlazorAuthUser");
 
         Task<AuthenticationState> authState = GetAuthenticationStateAsync();
         NotifyAuthenticationStateChanged(authState);
-        return await authState;
     }
 
     #endregion
