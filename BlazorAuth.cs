@@ -1,0 +1,115 @@
+﻿using Blazored.LocalStorage;
+using Blazored.SessionStorage;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
+using System.Security.Claims;
+
+namespace BlazorAuth;
+
+public class BlazorAuth(SignInManager<IdentityUser> _signInManager, UserManager<IdentityUser> _userManager, ISessionStorageService _sessionStorage, ILocalStorageService _localStorage, IOptions<BlazorAuthOptions> _options) : AuthenticationStateProvider
+{
+    #region Properties
+
+    public static ClaimsPrincipal Anonymous => new(new ClaimsIdentity());
+    public ClaimsPrincipal User { get; set; } = Anonymous;
+
+    #endregion
+
+    #region Public Methods
+
+    public async Task<AuthenticationState> SignIn(string email, string password)
+    {
+        IdentityUser? user = await _userManager.FindByEmailAsync(email);
+        if (user != null)
+        {
+            SignInResult result = await _signInManager.CheckPasswordSignInAsync(user, password, false);
+            if (result.Succeeded)
+            {
+                User = GetClaimsPrincipalFromIdentityUser(user);
+                await SaveUserIdToStorage(user.Id);
+
+                Task<AuthenticationState> authState = GetAuthenticationStateAsync();
+                NotifyAuthenticationStateChanged(authState);
+                return await authState;
+            }
+        }
+
+        throw new Exception("Invalid username or password.");
+    }
+
+    public async Task<AuthenticationState> SignOut()
+    {
+        User = Anonymous;
+        await _sessionStorage.RemoveItemAsync("BlazorAuthUser");
+
+        Task<AuthenticationState> authState = GetAuthenticationStateAsync();
+        NotifyAuthenticationStateChanged(authState);
+        return await authState;
+    }
+
+    #endregion
+
+    #region AuthenticationStateProvider Implementation
+
+    public override async Task<AuthenticationState> GetAuthenticationStateAsync()
+    {
+        string userId = await GetUserIdFromStorage();
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            IdentityUser? sessionUser = await _userManager.FindByIdAsync(userId);
+            if (sessionUser != null)
+            {
+                User = GetClaimsPrincipalFromIdentityUser(sessionUser);
+                return new AuthenticationState(User);
+            }
+        }
+
+        User = Anonymous;
+        return new AuthenticationState(User);
+    }
+
+    #endregion
+
+    #region Private Methods
+
+    private ClaimsPrincipal GetClaimsPrincipalFromIdentityUser(IdentityUser user)
+    {
+        Claim id = new Claim("BlazorAuthId", user.Id);
+        Claim email = new Claim(ClaimTypes.Email, user.Email ?? "");
+        Claim username = new Claim(ClaimTypes.Name, user.UserName ?? "");
+        return new ClaimsPrincipal(new ClaimsIdentity([id, email, username], "BlazorAuth"));
+    }
+
+    private async Task SaveUserIdToStorage(string userId)
+    {
+        if (_options.Value.StorageType == BlazorAuthOptions.eStorageType.Session)
+        {
+            await _sessionStorage.SetItemAsync<string>("BlazorAuthUser", userId);
+        }
+        else if (_options.Value.StorageType == BlazorAuthOptions.eStorageType.Local)
+        {
+            await _localStorage.SetItemAsync<string>("BlazorAuthUser", userId);
+        }
+    }
+
+    private async Task<string> GetUserIdFromStorage()
+    {
+        try
+        {
+            if (_options.Value.StorageType == BlazorAuthOptions.eStorageType.Session)
+            {
+                return await _sessionStorage.GetItemAsync<string>("BlazorAuthUser");
+            }
+            else if (_options.Value.StorageType == BlazorAuthOptions.eStorageType.Local)
+            {
+                return await _localStorage.GetItemAsync<string>("BlazorAuthUser") ?? "";
+            }
+        }
+        catch (Exception) { }
+
+        return string.Empty;
+    }
+
+    #endregion
+}
