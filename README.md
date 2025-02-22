@@ -1,6 +1,6 @@
 # BlazorAuth
 BlazorAuth is an authentication library that works on pages using InteractiveSerer rendering.
-BlazorAuth uses the SignInManager and UserManager from IdentityFramework for authentication as well as Blazored/SessionStorage and Blazored/LocalStorage to maintain session state.
+BlazorAuth uses the SignInManager and UserManager from IdentityFramework for authentication as well as ProtectedSessionStorage and ProtectedLocalStorage to maintain session state.
 
 ## Installation
 Register BlazorAuth in the Program.cs file. You can specify Session or Local storage. Session storage is the default value.
